@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -28,80 +28,6 @@ import { FilterX, BarChart2, Calendar, ArrowRight, Calculator, FileDown } from "
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { formatDate, formatCurrency, calculateProfit } from "@/lib/utils"
 import { CounterRecord, Machine, Location, MachineBalance } from "@/types"
-
-// Sample locations data
-const sampleLocations: Location[] = [
-  {
-    id: "L-1001",
-    name: "Casino Royal",
-    code: "CR",
-    city: "Las Vegas",
-    address: "123 Main St, Las Vegas, NV",
-    active: true,
-    createdAt: "2023-01-01T00:00:00Z",
-    updatedAt: "2023-01-01T00:00:00Z",
-  },
-  {
-    id: "L-1002",
-    name: "Fortune Club",
-    code: "FC",
-    city: "Atlantic City",
-    address: "456 Boardwalk, Atlantic City, NJ",
-    active: true,
-    createdAt: "2023-01-02T00:00:00Z",
-    updatedAt: "2023-01-02T00:00:00Z",
-  },
-  {
-    id: "L-1003",
-    name: "Lucky Star",
-    code: "LS",
-    city: "Reno",
-    address: "789 Casino Dr, Reno, NV",
-    active: true,
-    createdAt: "2023-01-03T00:00:00Z",
-    updatedAt: "2023-01-03T00:00:00Z",
-  },
-];
-
-// Sample machines data
-const sampleMachines: Machine[] = [
-  {
-    id: "M-1001",
-    brand: "IGT",
-    model: "Game King",
-    serial: "IGT-GK-12345",
-    assetCode: "A-1001",
-    denomination: 0.25,
-    locationId: "L-1001",
-    active: true,
-    createdAt: "2023-01-15T08:30:00Z",
-    updatedAt: "2023-01-15T08:30:00Z",
-  },
-  {
-    id: "M-1002",
-    brand: "Aristocrat",
-    model: "Buffalo",
-    serial: "ARI-BUF-67890",
-    assetCode: "A-1002",
-    denomination: 0.1,
-    locationId: "L-1002",
-    active: true,
-    createdAt: "2023-02-10T10:15:00Z",
-    updatedAt: "2023-06-20T14:45:00Z",
-  },
-  {
-    id: "M-1003",
-    brand: "Scientific Games",
-    model: "Zeus",
-    serial: "SG-ZEUS-45678",
-    assetCode: "A-1003",
-    denomination: 0.05,
-    locationId: "L-1001",
-    active: true,
-    createdAt: "2023-03-05T09:20:00Z",
-    updatedAt: "2023-03-05T09:20:00Z",
-  },
-];
 
 // Sample counter records
 const sampleCounterRecords: CounterRecord[] = [
@@ -257,7 +183,98 @@ export default function MachineBalancePage() {
   const [locationFilter, setLocationFilter] = useState<string>("all");
   const [machineFilter, setMachineFilter] = useState<string>("all");
   const [machineBalances, setMachineBalances] = useState<MachineBalance[]>([]);
-  
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState<boolean>(true);
+  const [loadingMachines, setLoadingMachines] = useState<boolean>(true);
+
+  type ApiLocation = {
+    id: number;
+    codigo: string;
+    nombre_casino: string;
+    ciudad: string;
+    direccion: string;
+    telefono: string;
+    persona_encargada: string;
+    estado: string;
+  };
+
+  // Ajusta el tipo Machine para que coincida con la estructura de tu API
+  type ApiMachine = {
+    id: string | number;
+    codigo: string;
+    activo: number;
+    marca: string;
+    modelo: string;
+    numero_serie: string;
+    denominacion: number;
+    casino: string; // nombre del casino
+  };
+
+  // Cargar ubicaciones desde la API al montar el componente
+  useEffect(() => {
+    const fetchLocations = async () => {
+      setLoadingLocations(true);
+      try {
+        const response = await fetch('http://127.0.0.1:8000/listar-lugares');
+        if (!response.ok) throw new Error("Error al obtener ubicaciones");
+        const data: ApiLocation[] = await response.json();
+        // Mapea los datos de la API al tipo Location usado en el frontend
+        const mappedLocations: Location[] = data.map((item) => ({
+          id: String(item.id),
+          name: item.nombre_casino,
+          code: item.codigo,
+          city: item.ciudad,
+          address: item.direccion,
+          active: item.estado === "Activo",
+          createdAt: "", // Si tienes fecha, ponla aquí
+          updatedAt: "", // Si tienes fecha, ponla aquí
+        }));
+        setLocations(mappedLocations);
+      } catch (error) {
+        setLocations([]);
+        console.error(error);
+      } finally {
+        setLoadingLocations(false);
+      }
+    };
+    fetchLocations();
+  }, []);
+
+  // Cargar máquinas desde la API
+  useEffect(() => {
+    const fetchMachines = async () => {
+      setLoadingMachines(true);
+      try {
+        const response = await fetch('http://127.0.0.1:8000/maquinas');
+        if (!response.ok) throw new Error("Error al obtener máquinas");
+        const data: ApiMachine[] = await response.json();
+        // Mapea los datos de la API al tipo Machine usado en el frontend
+        const mappedMachines: Machine[] = data.map((item) => ({
+          id: String(item.id),
+          brand: item.marca,
+          model: item.modelo,
+          serial: item.numero_serie,
+          assetCode: item.codigo,
+          denomination: item.denominacion,
+          // Relaciona el casino por nombre, pero si tienes el id deberías usarlo
+          locationId: locations.find(l => l.name === item.casino)?.id || "", 
+          active: item.activo === 1,
+          createdAt: "", // Si tienes fecha, ponla aquí
+          updatedAt: "", // Si tienes fecha, ponla aquí
+        }));
+        setMachines(mappedMachines);
+      } catch (error) {
+        setMachines([]);
+        console.error(error);
+      } finally {
+        setLoadingMachines(false);
+      }
+    };
+    fetchMachines();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locations]); // Espera a que locations esté cargado para mapear correctamente
+
   // Calculate balances when filters change
   const calculateBalances = () => {
     if (!startDate || !endDate) return;
@@ -265,17 +282,17 @@ export default function MachineBalancePage() {
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
     
-    // Filter machines based on location filter
-    const filteredMachines = sampleMachines.filter(
+    // Filtra máquinas según el filtro de ubicación
+    const filteredMachines = machines.filter(
       machine => locationFilter === "all" || machine.locationId === locationFilter
     );
     
-    // Filter machines further if a specific machine is selected
+    // Filtra máquinas si hay una máquina seleccionada
     const machinesToProcess = machineFilter === "all" 
       ? filteredMachines 
       : filteredMachines.filter(m => m.id === machineFilter);
     
-    // Calculate balance for each machine
+    // Calcula el balance para cada máquina
     const balances: MachineBalance[] = [];
     
     for (const machine of machinesToProcess) {
@@ -283,8 +300,8 @@ export default function MachineBalancePage() {
         machine.id,
         startDateStr,
         endDateStr,
-        sampleCounterRecords,
-        sampleMachines
+        sampleCounterRecords, // Aquí deberías traer los registros reales si tienes endpoint
+        machines
       );
       
       if (balance) {
@@ -297,13 +314,13 @@ export default function MachineBalancePage() {
   
   // Get location name from id
   const getLocationName = (locationId: string): string => {
-    const location = sampleLocations.find(l => l.id === locationId);
+    const location = locations.find(l => l.id === locationId);
     return location ? location.name : "Desconocida";
   };
   
   // Get machine name from id
   const getMachineName = (machineId: string): string => {
-    const machine = sampleMachines.find(m => m.id === machineId);
+    const machine = machines.find(m => m.id === machineId);
     if (!machine) return "Desconocida";
     
     return `${machine.brand} ${machine.model} (${machine.assetCode})`;
@@ -343,7 +360,7 @@ export default function MachineBalancePage() {
     const csvRows = [headers.join(',')];
     
     for (const balance of machineBalances) {
-      const machine = sampleMachines.find(m => m.id === balance.machineId);
+      const machine = machines.find(m => m.id === balance.machineId);
       if (!machine) continue;
       
       const locationName = getLocationName(machine.locationId);
@@ -446,13 +463,14 @@ export default function MachineBalancePage() {
               <Select
                 value={locationFilter}
                 onValueChange={setLocationFilter}
+                disabled={loadingLocations}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Todas las ubicaciones" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las ubicaciones</SelectItem>
-                  {sampleLocations.map((location) => (
+                  {locations.map((location) => (
                     <SelectItem key={location.id} value={location.id}>
                       {location.name}
                     </SelectItem>
@@ -467,13 +485,14 @@ export default function MachineBalancePage() {
               <Select
                 value={machineFilter}
                 onValueChange={setMachineFilter}
+                disabled={loadingMachines}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Todas las máquinas" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las máquinas</SelectItem>
-                  {sampleMachines
+                  {machines
                     .filter(
                       (machine) =>
                         locationFilter === "all" ||
@@ -545,7 +564,7 @@ export default function MachineBalancePage() {
               </TableHeader>
               <TableBody>
                 {machineBalances.map((balance) => {
-                  const machine = sampleMachines.find(m => m.id === balance.machineId);
+                  const machine = machines.find(m => m.id === balance.machineId);
                   return (
                     <TableRow key={balance.machineId}>
                       <TableCell>
